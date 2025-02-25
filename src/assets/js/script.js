@@ -14,7 +14,7 @@ scene.background = new THREE.Color(0xFFFFFF);
 
 // Configuração da câmera
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(4, 15, 13);
+camera.position.set(10, 20, 10);
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.update();
 
@@ -52,6 +52,23 @@ ringBody.position.set(0, 5, 0);
 ringBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 world.addBody(ringBody);
 
+// Chão
+const groundGeometry = new THREE.PlaneGeometry(20, 20);
+const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, side: THREE.DoubleSide });
+const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+groundMesh.receiveShadow = true;
+groundMesh.rotation.x = -Math.PI / 2;
+scene.add(groundMesh);
+
+const groundPhysMat = new CANNON.Material();
+const groundBody = new CANNON.Body({
+    type: CANNON.Body.STATIC,
+    shape: new CANNON.Plane(),
+    material: groundPhysMat
+});
+groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+world.addBody(groundBody);
+
 // Arrays para armazenar bolinhas
 const meshes = [];
 const bodies = [];
@@ -59,6 +76,37 @@ const bodies = [];
 // Sistema de pontuação
 let score = 0;
 const scoreElement = document.getElementById('score');
+
+// Sistema de cronômetro
+let startTime = null;
+let elapsedTime = 0;
+let timerInterval = null;
+const timerElement = document.getElementById('timer');
+
+function updateTimer() {
+    const currentTime = Date.now();
+    elapsedTime = currentTime - startTime;
+    const seconds = Math.floor(elapsedTime / 1000);
+    const milliseconds = Math.floor((elapsedTime % 1000) / 10);
+    timerElement.textContent = `Tempo: ${seconds.toString().padStart(2, '0')}:${milliseconds.toString().padStart(2, '0')}`;
+}
+
+function startTimer() {
+    if (timerInterval) return; // Evita múltiplos intervalos
+    startTime = Date.now() - elapsedTime;
+    timerInterval = setInterval(updateTimer, 10);
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+function resetTimer() {
+    stopTimer();
+    elapsedTime = 0;
+    timerElement.textContent = 'Tempo: 00:00';
+}
 
 // Função para criar uma bola
 function createBall() {
@@ -92,6 +140,7 @@ let intervalId = null;
 function startBallGeneration() {
     if (intervalId) return;
     intervalId = setInterval(createBall, 500);
+    startTimer(); // Inicia o cronômetro
 }
 
 function stopBallGeneration() {
@@ -99,29 +148,40 @@ function stopBallGeneration() {
         clearInterval(intervalId);
         intervalId = null;
     }
+    stopTimer(); // Para o cronômetro
 }
 
+// Função para resetar (remover bolinhas, zerar pontuação e cronômetro)
+function resetGame() {
+    meshes.forEach(mesh => scene.remove(mesh));
+    bodies.forEach(body => world.removeBody(body));
+    meshes.length = 0;
+    bodies.length = 0;
+
+    score = 0;
+    scoreElement.textContent = `Pontuação: ${score}`;
+    resetTimer(); // Reseta o cronômetro
+}
+
+// Adiciona eventos aos botões
 document.getElementById('startButton').addEventListener('click', startBallGeneration);
 document.getElementById('stopButton').addEventListener('click', stopBallGeneration);
+document.getElementById('resetButton').addEventListener('click', resetGame);
 
 // Função para mover o anel com o mouse
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 function moveRingWithMouse(event) {
-    // Obtém a posição do mouse normalizada (-1 a 1)
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    // Define o raio a partir da câmera na direção do mouse
     raycaster.setFromCamera(mouse, camera);
 
-    // Calcula a interseção do raio com o plano Y = 5 (altura do anel)
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 5);
     const intersection = new THREE.Vector3();
     raycaster.ray.intersectPlane(plane, intersection);
 
-    // Atualiza a posição do anel (malha visual e corpo físico)
     ringMesh.position.set(intersection.x, 5, intersection.z);
     ringBody.position.set(intersection.x, 5, intersection.z);
 }
@@ -134,37 +194,27 @@ const timestep = 1 / 60;
 function animate() {
     world.step(timestep);
 
-    for (let i = 0; i < meshes.length; i++) {
-        meshes[i].position.copy(bodies[i].position);
-        meshes[i].quaternion.copy(bodies[i].quaternion);
+    meshes.forEach((mesh, i) => {
+        mesh.position.copy(bodies[i].position);
+        mesh.quaternion.copy(bodies[i].quaternion);
 
-        // Verifica se a bolinha passou pelo anel
-        const ballY = meshes[i].position.y;
+        const ballY = mesh.position.y;
         const ringY = ringMesh.position.y;
-        const ballX = meshes[i].position.x;
-        const ballZ = meshes[i].position.z;
-        const ringX = ringMesh.position.x;
-        const ringZ = ringMesh.position.z;
+        const distance = Math.sqrt((mesh.position.x - ringMesh.position.x) ** 2 + (mesh.position.z - ringMesh.position.z) ** 2);
 
-        // Distância entre a bolinha e o centro do anel
-        const distance = Math.sqrt((ballX - ringX) ** 2 + (ballZ - ringZ) ** 2);
-
-        // Se a bolinha estiver dentro do raio do anel e abaixo dele, conta o ponto
         if (ballY < ringY && distance < ringRadius && !bodies[i].hasScored) {
-            bodies[i].hasScored = true; // Marca que a bolinha já pontuou
-            score++; // Incrementa a pontuação
-            scoreElement.textContent = `Pontuação: ${score}`; // Atualiza o texto da pontuação
+            bodies[i].hasScored = true;
+            score++;
+            scoreElement.textContent = `Pontuação: ${score}`;
         }
 
-        // Remove bolinhas que caíram muito
-        if (ballY < -10) {
-            scene.remove(meshes[i]);
+        if (ballY < 0 && !bodies[i].hasScored) {
+            scene.remove(mesh);
             world.removeBody(bodies[i]);
             meshes.splice(i, 1);
             bodies.splice(i, 1);
-            i--;
         }
-    }
+    });
 
     renderer.render(scene, camera);
 }

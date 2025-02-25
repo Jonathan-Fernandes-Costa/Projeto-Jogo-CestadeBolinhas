@@ -10,17 +10,21 @@
 </head>
 
 <body>
-    <div id="controls">
-        <label for="difficulty">Dificuldade:</label>
-        <select id="difficulty">
-            <option value="easy">Fácil</option>
-            <option value="medium">Médio</option>
-            <option value="hard">Difícil</option>
-        </select>
-        <button id="startButton">Iniciar</button>
-        <button id="stopButton">Parar</button>
+    <div >
+        <div id="controls">
+            <label for="difficulty">Dificuldade:</label>
+            <select id="difficulty">
+                <option value="easy">Fácil</option>
+                <option value="medium">Médio</option>
+                <option value="hard">Difícil</option>
+            </select>
+            <button id="startButton">Iniciar</button>
+            <button id="stopButton">Parar</button>
+            <button id="resetButton">Resetar</button>
+        </div><br>
+        <div id="timer">Tempo: 00:00</div>
+        <div id="score">Pontuação: 0</div>
     </div>
-    <div id="score">Pontuação: 0</div>
 
     <script src="../src/assets/js/script.js" type="module"></script>
 </body>
