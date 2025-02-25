@@ -30,54 +30,27 @@ scene.add(directionalLight);
 // Mundo físico
 const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.81, 0) });
 
-// Cesta (cilindro oco com parede)
-const basketRadius = 1; // Raio da cesta reduzido
-const basketHeight = 0.5; // Altura da parede da cesta reduzida
-const basketWallThickness = 0.1; // Espessura da parede da cesta
+// Anel (torus)
+const ringRadius = 1;
+const ringThickness = 0.1;
+const ringGeometry = new THREE.TorusGeometry(ringRadius, ringThickness, 16, 100);
+const ringMaterial = new THREE.MeshStandardMaterial({ color: 0xffa500 });
+const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+ringMesh.castShadow = true;
+ringMesh.receiveShadow = true;
+ringMesh.position.set(0, 5, 0);
+ringMesh.rotation.x = Math.PI / 2;
+scene.add(ringMesh);
 
-// Base da cesta
-const basketBaseGeometry = new THREE.CylinderGeometry(basketRadius, basketRadius, 0.1, 32);
-const basketBaseMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-const basketBaseMesh = new THREE.Mesh(basketBaseGeometry, basketBaseMaterial);
-basketBaseMesh.castShadow = true;
-basketBaseMesh.receiveShadow = true;
-basketBaseMesh.position.set(0, 0, 0);
-scene.add(basketBaseMesh);
-
-// Parede da cesta (cilindro oco)
-const basketWallGeometry = new THREE.CylinderGeometry(
-    basketRadius, // Raio externo
-    basketRadius - basketWallThickness, // Raio interno (cria o efeito de parede)
-    basketHeight, // Altura da parede
-    32 // Número de segmentos
-);
-const basketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-const basketWallMesh = new THREE.Mesh(basketWallGeometry, basketWallMaterial);
-basketWallMesh.castShadow = true;
-basketWallMesh.receiveShadow = true;
-basketWallMesh.position.set(0, basketHeight / 2, 0); // Posiciona a parede acima da base
-scene.add(basketWallMesh);
-
-// Corpo físico da cesta (base e parede)
-const basketPhysMat = new CANNON.Material();
-
-// Base física da cesta
-const basketBaseBody = new CANNON.Body({
+const ringPhysMat = new CANNON.Material();
+const ringBody = new CANNON.Body({
     type: CANNON.Body.STATIC,
-    shape: new CANNON.Cylinder(basketRadius, basketRadius, 0.1, 32),
-    material: basketPhysMat
+    shape: new CANNON.Cylinder(ringRadius, ringRadius, ringThickness, 32),
+    material: ringPhysMat
 });
-basketBaseBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Rotaciona para ficar horizontal
-world.addBody(basketBaseBody);
-
-// Parede física da cesta
-const basketWallBody = new CANNON.Body({
-    type: CANNON.Body.STATIC,
-    shape: new CANNON.Cylinder(basketRadius, basketRadius - basketWallThickness, basketHeight, 32),
-    material: basketPhysMat
-});
-basketWallBody.position.set(0, basketHeight / 2, 0); // Posiciona a parede acima da base
-world.addBody(basketWallBody);
+ringBody.position.set(0, 5, 0);
+ringBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+world.addBody(ringBody);
 
 // Arrays para armazenar bolinhas
 const meshes = [];
@@ -93,7 +66,7 @@ function createBall() {
     const randomZ = (Math.random() - 0.5) * 10;
     const randomY = 10;
 
-    const sphereGeo = new THREE.SphereGeometry(0.2, 30, 30); // Raio aumentado para 0.2
+    const sphereGeo = new THREE.SphereGeometry(0.2, 30, 30);
     const sphereMat = new THREE.MeshStandardMaterial({ color: Math.random() * 0xFFFFFF });
     const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
     sphereMesh.castShadow = true;
@@ -103,7 +76,7 @@ function createBall() {
     const spherePhysMat = new CANNON.Material();
     const sphereBody = new CANNON.Body({
         mass: 0.3,
-        shape: new CANNON.Sphere(0.2), // Raio aumentado para 0.2
+        shape: new CANNON.Sphere(0.2),
         position: new CANNON.Vec3(randomX, randomY, randomZ),
         material: spherePhysMat
     });
@@ -131,11 +104,11 @@ function stopBallGeneration() {
 document.getElementById('startButton').addEventListener('click', startBallGeneration);
 document.getElementById('stopButton').addEventListener('click', stopBallGeneration);
 
-// Função para mover a cesta com o mouse
+// Função para mover o anel com o mouse
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-function moveBasketWithMouse(event) {
+function moveRingWithMouse(event) {
     // Obtém a posição do mouse normalizada (-1 a 1)
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -143,21 +116,17 @@ function moveBasketWithMouse(event) {
     // Define o raio a partir da câmera na direção do mouse
     raycaster.setFromCamera(mouse, camera);
 
-    // Calcula a interseção do raio com o plano Y = 0 (chão)
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    // Calcula a interseção do raio com o plano Y = 5 (altura do anel)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 5);
     const intersection = new THREE.Vector3();
     raycaster.ray.intersectPlane(plane, intersection);
 
-    // Atualiza a posição da cesta (malha visual e corpo físico)
-    basketBaseMesh.position.set(intersection.x, 0, intersection.z);
-    basketWallMesh.position.set(intersection.x, basketHeight / 2, intersection.z);
-
-    basketBaseBody.position.set(intersection.x, 0, intersection.z);
-    basketWallBody.position.set(intersection.x, basketHeight / 2, intersection.z);
+    // Atualiza a posição do anel (malha visual e corpo físico)
+    ringMesh.position.set(intersection.x, 5, intersection.z);
+    ringBody.position.set(intersection.x, 5, intersection.z);
 }
 
-// Adiciona o evento de movimento do mouse
-window.addEventListener('mousemove', moveBasketWithMouse);
+window.addEventListener('mousemove', moveRingWithMouse);
 
 // Animação
 const timestep = 1 / 60;
@@ -169,13 +138,26 @@ function animate() {
         meshes[i].position.copy(bodies[i].position);
         meshes[i].quaternion.copy(bodies[i].quaternion);
 
-        // Verifica se a bolinha está dentro da cesta
-        const distanceToBase = meshes[i].position.distanceTo(basketBaseMesh.position);
-        const isInsideBasket = distanceToBase < basketRadius && meshes[i].position.y < basketHeight;
+        // Verifica se a bolinha passou pelo anel
+        const ballY = meshes[i].position.y;
+        const ringY = ringMesh.position.y;
+        const ballX = meshes[i].position.x;
+        const ballZ = meshes[i].position.z;
+        const ringX = ringMesh.position.x;
+        const ringZ = ringMesh.position.z;
 
-        if (isInsideBasket) {
+        // Distância entre a bolinha e o centro do anel
+        const distance = Math.sqrt((ballX - ringX) ** 2 + (ballZ - ringZ) ** 2);
+
+        // Se a bolinha estiver dentro do raio do anel e abaixo dele, conta o ponto
+        if (ballY < ringY && distance < ringRadius && !bodies[i].hasScored) {
+            bodies[i].hasScored = true; // Marca que a bolinha já pontuou
             score++; // Incrementa a pontuação
             scoreElement.textContent = `Pontuação: ${score}`; // Atualiza o texto da pontuação
+        }
+
+        // Remove bolinhas que caíram muito
+        if (ballY < -10) {
             scene.remove(meshes[i]);
             world.removeBody(bodies[i]);
             meshes.splice(i, 1);
