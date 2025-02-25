@@ -1,14 +1,10 @@
-# ThreeBoilerplate
+# Game Cesta de Bolinhas
 
-This is the boilerplate that I'm using for my Three.js tutorials.
+Siga estes passos:
 
-Wanna use it? okay then just follow these simple steps:
-
-1. Clone the repository;
-2. Open the folder in Visual Studio Code;
-3. Open the terminal and type this command: npm install
-5. Run the app on the server by typing this command: npx vite
-6. Ctrl + click on the server link "http://localhost:5173/" to open the app in your browser;
-7. Have fun!
-
-• The /public folder is where you put the images and 3D models.
+1. Clone o repositório;
+2. Abra a pasta no Visual Studio Code;
+3. Abra o terminal e digite este comando: npm install
+4. Depois digite: npm install cannon-es
+5. Execute o aplicativo no servidor digitando este comando: npx vite
+6. Ctrl + clique no link do servidor "http://localhost:5173/" para abrir o aplicativo no seu navegador;
