@@ -1,153 +1,187 @@
-import * as THREE from 'three'; 
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'; 
-import * as CANNON from 'cannon-es'; 
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import * as CANNON from 'cannon-es';
 
+// Configuração do renderizador
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight); 
-renderer.shadowMap.enabled = true; // Habilita sombras
-document.body.appendChild(renderer.domElement); 
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
 
+// Criação da cena
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xFFFFFF); // Fundo branco
+scene.background = new THREE.Color(0xFFFFFF);
 
-const camera = new THREE.PerspectiveCamera(
-    45,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-);
-
+// Configuração da câmera
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(4, 15, 13);
 const orbit = new OrbitControls(camera, renderer.domElement);
-camera.position.set(4, 15, 13); 
-orbit.update(); 
+orbit.update();
 
-const ambientLight = new THREE.AmbientLight(0x333333); 
+// Iluminação
+const ambientLight = new THREE.AmbientLight(0x333333);
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.8); 
-directionalLight.castShadow = true; // Habilita sombras para a luz direcional
-directionalLight.shadow.mapSize.width = 1024; // Aumenta a resolução da sombra
-directionalLight.shadow.mapSize.height = 1024;
-scene.add(directionalLight);
+const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.8);
+directionalLight.castShadow = true;
 directionalLight.position.set(0, 50, 0);
+scene.add(directionalLight);
 
+// Mundo físico
 const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.81, 0) });
 
-const planeGeo = new THREE.PlaneGeometry(10, 10);
-const planeMat = new THREE.MeshStandardMaterial({
-    color: 0xFFFFFF,
-    side: THREE.DoubleSide
-});
-const planeMesh = new THREE.Mesh(planeGeo, planeMat);
-planeMesh.receiveShadow = true; // Habilita sombras para o plano
-scene.add(planeMesh);
+// Cesta (cilindro oco com parede)
+const basketRadius = 1; // Raio da cesta reduzido
+const basketHeight = 0.5; // Altura da parede da cesta reduzida
+const basketWallThickness = 0.1; // Espessura da parede da cesta
 
-const planePhysMat = new CANNON.Material();
-const planeBody = new CANNON.Body({
+// Base da cesta
+const basketBaseGeometry = new THREE.CylinderGeometry(basketRadius, basketRadius, 0.1, 32);
+const basketBaseMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+const basketBaseMesh = new THREE.Mesh(basketBaseGeometry, basketBaseMaterial);
+basketBaseMesh.castShadow = true;
+basketBaseMesh.receiveShadow = true;
+basketBaseMesh.position.set(0, 0, 0);
+scene.add(basketBaseMesh);
+
+// Parede da cesta (cilindro oco)
+const basketWallGeometry = new THREE.CylinderGeometry(
+    basketRadius, // Raio externo
+    basketRadius - basketWallThickness, // Raio interno (cria o efeito de parede)
+    basketHeight, // Altura da parede
+    32 // Número de segmentos
+);
+const basketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+const basketWallMesh = new THREE.Mesh(basketWallGeometry, basketWallMaterial);
+basketWallMesh.castShadow = true;
+basketWallMesh.receiveShadow = true;
+basketWallMesh.position.set(0, basketHeight / 2, 0); // Posiciona a parede acima da base
+scene.add(basketWallMesh);
+
+// Corpo físico da cesta (base e parede)
+const basketPhysMat = new CANNON.Material();
+
+// Base física da cesta
+const basketBaseBody = new CANNON.Body({
     type: CANNON.Body.STATIC,
-    shape: new CANNON.Box(new CANNON.Vec3(5, 5, 0.001)),
-    material: planePhysMat
+    shape: new CANNON.Cylinder(basketRadius, basketRadius, 0.1, 32),
+    material: basketPhysMat
 });
-planeBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-world.addBody(planeBody);
+basketBaseBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Rotaciona para ficar horizontal
+world.addBody(basketBaseBody);
 
+// Parede física da cesta
+const basketWallBody = new CANNON.Body({
+    type: CANNON.Body.STATIC,
+    shape: new CANNON.Cylinder(basketRadius, basketRadius - basketWallThickness, basketHeight, 32),
+    material: basketPhysMat
+});
+basketWallBody.position.set(0, basketHeight / 2, 0); // Posiciona a parede acima da base
+world.addBody(basketWallBody);
+
+// Arrays para armazenar bolinhas
 const meshes = [];
 const bodies = [];
 
+// Sistema de pontuação
+let score = 0;
+const scoreElement = document.getElementById('score');
+
 // Função para criar uma bola
 function createBall() {
-    // Gera posições aleatórias dentro dos limites do plano
-    const randomX = (Math.random() - 0.5) * 10; // Entre -5 e 5
-    const randomZ = (Math.random() - 0.5) * 10; // Entre -5 e 5
-    const randomY = 10; // Define uma altura fixa para as bolinhas caírem
+    const randomX = (Math.random() - 0.5) * 10;
+    const randomZ = (Math.random() - 0.5) * 10;
+    const randomY = 10;
 
-    const sphereGeo = new THREE.SphereGeometry(0.125, 30, 30);
-    const sphereMat = new THREE.MeshStandardMaterial({
-        color: Math.random() * 0xFFFFFF,
-        metalness: 0,
-        roughness: 0
-    });
+    const sphereGeo = new THREE.SphereGeometry(0.2, 30, 30); // Raio aumentado para 0.2
+    const sphereMat = new THREE.MeshStandardMaterial({ color: Math.random() * 0xFFFFFF });
     const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
-    sphereMesh.castShadow = true; // Habilita sombras para a bolinha
+    sphereMesh.castShadow = true;
     scene.add(sphereMesh);
-    sphereMesh.position.set(randomX, randomY, randomZ); // Define a posição aleatória
+    sphereMesh.position.set(randomX, randomY, randomZ);
 
     const spherePhysMat = new CANNON.Material();
     const sphereBody = new CANNON.Body({
         mass: 0.3,
-        shape: new CANNON.Sphere(0.125),
-        position: new CANNON.Vec3(randomX, randomY, randomZ), // Define a posição aleatória
+        shape: new CANNON.Sphere(0.2), // Raio aumentado para 0.2
+        position: new CANNON.Vec3(randomX, randomY, randomZ),
         material: spherePhysMat
     });
     world.addBody(sphereBody);
-
-    const planeSphereContactMat = new CANNON.ContactMaterial(
-        planePhysMat,
-        spherePhysMat,
-        { restitution: 0.3 }
-    );
-    world.addContactMaterial(planeSphereContactMat);
 
     meshes.push(sphereMesh);
     bodies.push(sphereBody);
 }
 
-// Variável para controlar o intervalo de geração de bolas
+// Controle de geração de bolinhas
 let intervalId = null;
 
-// Função para iniciar a geração de bolas
 function startBallGeneration() {
-    if (intervalId) return; // Se já estiver rodando, não faz nada
-
-    // Obtém a dificuldade selecionada
-    const difficulty = document.getElementById('difficulty').value;
-
-    // Define o intervalo de geração com base na dificuldade
-    let intervalTime;
-    switch (difficulty) {
-        case 'easy':
-            intervalTime = 1000; // 1 segundo
-            break;
-        case 'medium':
-            intervalTime = 500; // 0.5 segundos
-            break;
-        case 'hard':
-            intervalTime = 250; // 0.25 segundos
-            break;
-        default:
-            intervalTime = 1000; // Padrão: fácil
-    }
-
-    intervalId = setInterval(() => {
-        createBall(); // Gera uma bola a cada intervalo
-    }, intervalTime);
+    if (intervalId) return;
+    intervalId = setInterval(createBall, 500);
 }
 
-// Função para parar a geração de bolas
 function stopBallGeneration() {
     if (intervalId) {
-        clearInterval(intervalId); // Interrompe o intervalo
+        clearInterval(intervalId);
         intervalId = null;
     }
 }
 
-// Adiciona o evento de clique ao botão "Iniciar"
 document.getElementById('startButton').addEventListener('click', startBallGeneration);
-
-// Adiciona o evento de clique ao botão "Parar"
 document.getElementById('stopButton').addEventListener('click', stopBallGeneration);
 
+// Função para mover a cesta com o mouse
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function moveBasketWithMouse(event) {
+    // Obtém a posição do mouse normalizada (-1 a 1)
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // Define o raio a partir da câmera na direção do mouse
+    raycaster.setFromCamera(mouse, camera);
+
+    // Calcula a interseção do raio com o plano Y = 0 (chão)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const intersection = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, intersection);
+
+    // Atualiza a posição da cesta (malha visual e corpo físico)
+    basketBaseMesh.position.set(intersection.x, 0, intersection.z);
+    basketWallMesh.position.set(intersection.x, basketHeight / 2, intersection.z);
+
+    basketBaseBody.position.set(intersection.x, 0, intersection.z);
+    basketWallBody.position.set(intersection.x, basketHeight / 2, intersection.z);
+}
+
+// Adiciona o evento de movimento do mouse
+window.addEventListener('mousemove', moveBasketWithMouse);
+
+// Animação
 const timestep = 1 / 60;
 
 function animate() {
     world.step(timestep);
 
-    planeMesh.position.copy(planeBody.position);
-    planeMesh.quaternion.copy(planeBody.quaternion);
-
     for (let i = 0; i < meshes.length; i++) {
         meshes[i].position.copy(bodies[i].position);
         meshes[i].quaternion.copy(bodies[i].quaternion);
+
+        // Verifica se a bolinha está dentro da cesta
+        const distanceToBase = meshes[i].position.distanceTo(basketBaseMesh.position);
+        const isInsideBasket = distanceToBase < basketRadius && meshes[i].position.y < basketHeight;
+
+        if (isInsideBasket) {
+            score++; // Incrementa a pontuação
+            scoreElement.textContent = `Pontuação: ${score}`; // Atualiza o texto da pontuação
+            scene.remove(meshes[i]);
+            world.removeBody(bodies[i]);
+            meshes.splice(i, 1);
+            bodies.splice(i, 1);
+            i--;
+        }
     }
 
     renderer.render(scene, camera);
@@ -155,7 +189,8 @@ function animate() {
 
 renderer.setAnimationLoop(animate);
 
-window.addEventListener('resize', function () {
+// Redimensionamento da janela
+window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
