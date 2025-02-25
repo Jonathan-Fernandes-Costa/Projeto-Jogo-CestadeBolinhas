@@ -1,19 +1,15 @@
-import * as THREE from 'three'; // Importa a biblioteca Three.js para criar cenas 3D.
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'; // Importa os controles de órbita para mover a câmera.
-import * as CANNON from 'cannon-es'; // Importa a biblioteca Cannon.js para física 
+import * as THREE from 'three'; 
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'; 
+import * as CANNON from 'cannon-es'; 
 
-// Cria o renderizador WebGL com antialiasing para suavizar as bordas.
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight); // Define o tamanho do renderizador para o tamanho da janela.
-document.body.appendChild(renderer.domElement); // Adiciona o elemento do renderizador ao corpo do documento.
+renderer.setSize(window.innerWidth, window.innerHeight); 
 
-// Define a cor de fundo da cena.
-renderer.setClearColor(0xFEFEFE);
+document.body.appendChild(renderer.domElement); 
 
-// Cria a cena 3D.
+
 const scene = new THREE.Scene();
 
-// Cria uma câmera perspectiva com um campo de visão de 45 graus, proporção de aspecto da janela, plano de corte próximo de 0.1 e plano de corte distante de 1000.
 const camera = new THREE.PerspectiveCamera(
     45,
     window.innerWidth / window.innerHeight,
@@ -21,11 +17,10 @@ const camera = new THREE.PerspectiveCamera(
     1000
 );
 
-// Cria controles de órbita para permitir que o usuário mova a câmera ao redor da cena.
 const orbit = new OrbitControls(camera, renderer.domElement);
 
-camera.position.set(4, 15, 13); // Define a posição inicial da câmera.
-orbit.update(); // Atualiza os controles de órbita após alterar a posição da câmera.
+camera.position.set(4, 15, 13); 
+orbit.update(); 
 
 const ambientLight = new THREE.AmbientLight(0x333333);
 scene.add(ambientLight);
@@ -67,6 +62,9 @@ window.addEventListener('mousemove', function(e) {
     raycaster.ray.intersectPlane(plane, intersectionPoint);
 });
 
+const meshes = [];
+const bodies = [];
+
 window.addEventListener('click', function(e) {
     const sphereGeo = new THREE.SphereGeometry(0.125, 30, 30);
     const sphereMat = new THREE.MeshStandardMaterial({
@@ -77,27 +75,39 @@ window.addEventListener('click', function(e) {
     const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
     scene.add(sphereMat);
     sphereMesh.position.copy(intersectionPoint);
+
+    const sphereBody = new CANNON.body({
+        mass: 0.3,
+        sape: new CANNON.Sphere(0.125)
+    });
+    world.addBody(sphereBody);
+
+    meshes.push(sphereMesh);
+    bodies.push(sphereBody);
 });
 
-// Cria um grid helper de 12x12 para ajudar na visualização do espaço 3D.
-const gridHelper = new THREE.GridHelper(12, 12);
-scene.add(gridHelper); // Adiciona o grid helper à cena.
+const timestep = 1 / 60;
 
-// Cria um helper de eixos com comprimento de 4 para visualizar os eixos X, Y e Z.
-const axesHelper = new THREE.AxesHelper(4);
-scene.add(axesHelper); // Adiciona o helper de eixos à cena.
 
-// Função de animação que renderiza a cena a cada frame.
-function animate() {
-    renderer.render(scene, camera); // Renderiza a cena com a câmera atual.
+function animate(){
+    world.step(timestep);
+
+    planeMesh.position.copy(planeBody.position);
+    planeMesh.quaternion.copy(planeBody.quaternion);
+
+    for(let i = 0; i < meshes.length; i++) {
+        meshes[i].position.copy(bodies[i].position);
+        meshes[i].quaternion.copy(bodies[i].quaternion);
+    }
+
+    renderer.render(scene, camera);
 }
 
-// Define o loop de animação para chamar a função `animate` continuamente.
 renderer.setAnimationLoop(animate);
 
-// Adiciona um listener para redimensionar a cena quando a janela for redimensionada.
 window.addEventListener('resize', function () {
-    camera.aspect = window.innerWidth / window.innerHeight; // Atualiza a proporção de aspecto da câmera.
-    camera.updateProjectionMatrix(); // Atualiza a matriz de projeção da câmera.
-    renderer.setSize(window.innerWidth, window.innerHeight); // Atualiza o tamanho do renderizador.
-});
+    camera.aspect = this.window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+})
+
