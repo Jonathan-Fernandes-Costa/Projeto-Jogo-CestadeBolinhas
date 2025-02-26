@@ -1,18 +1,74 @@
-# Game Cesta de Bolinhas
+# 🎮 Game Cesta de Bolinhas  
 
-Equipe:
+## 🏀 Sobre o Projeto  
 
-1. Tailson Alves 
-2. Artur Jardel 
-3. Alisson dos Santos 
-4. Jonathan Fernandes 
-5. Francisco Wesley 
+O **Game Cesta de Bolinhas** é um jogo interativo desenvolvido utilizando **Three.js** para renderização 3D e a biblioteca **CANNON-ES** para disciplina de Computação Gráfica. O objetivo do jogo é fazer com que as bolas que caem do céu passarem pelo aro.  
 
-Siga estes passos:
+## 🚀 Tecnologias Utilizadas  
 
-1. Clone o repositório;
-2. Abra a pasta no Visual Studio Code;
-3. Abra o terminal e digite este comando: npm install
-4. Depois digite: npm install cannon-es
-5. Execute o aplicativo no servidor digitando este comando: npx vite
-6. Ctrl + clique no link do servidor "http://localhost:5173/" para abrir o aplicativo no seu navegador;
+- **Three.js** → Biblioteca JavaScript para renderização e manipulação de gráficos 3D na web.  
+- **CANNON-ES** → Biblioteca de física baseada em JavaScript para simulação de corpos rígidos e colisões.  
+- **Vite** → Ferramenta moderna de build para aplicações web, garantindo desempenho otimizado no desenvolvimento.  
+- **Vercel** → Plataforma de hospedagem para aplicações frontend modernas.  
+
+## 🌐 Acesse o Jogo Online  
+
+🔗 [Game Cesta de Bolinhas - Deploy](https://projeto-jogo-cestade-bolinhas.vercel.app/)  
+
+## 👥 Equipe  
+
+- Tailson Alves  
+- Artur Jardel  
+- Alisson dos Santos  
+- Jonathan Fernandes  
+- Francisco Wesley  
+
+## 📚 Como Executar o Projeto Localmente  
+
+Siga os passos abaixo para rodar o projeto em sua máquina:  
+
+### 1️⃣ Clone o Repositório  
+
+```bash
+git clone https://github.com/Jonathan-Fernandes-Costa/Projeto-Jogo-CestadeBolinhas.git
+```
+
+### 2️⃣ Acesse a Pasta do Projeto  
+
+```bash
+cd Projeto-Jogo-CestadeBolinhas
+```
+
+### 3️⃣ Abra no Visual Studio Code  
+
+```bash
+code .
+```
+
+### 4️⃣ Instale as Dependências  
+
+```bash
+npm install
+npm install cannon-es
+```
+
+### 5️⃣ Inicie o Servidor de Desenvolvimento  
+
+```bash
+npx vite
+```
+
+### 6️⃣ Acesse no Navegador  
+
+Após rodar o comando acima, o terminal exibirá um link parecido com este:  
+
+```bash
+http://localhost:5173/
+```
+
+Segure **Ctrl** e clique no link para abrir o jogo no navegador.  
+
+---
+
+
+🎯 Divirta-se jogando! 🚀✨
