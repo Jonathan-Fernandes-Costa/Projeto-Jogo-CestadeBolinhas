@@ -28,13 +28,13 @@ function loadTexture(path) {
 
 // Carrega as texturas para as bolas (usando caminhos relativos ao index.html)
 const texturePaths = [
-    'src/assets/textures/TCom_Marble_TilesDiamond2_header.jpg',
-    'src/assets/textures/TCom_Marble_TilesGeometric2_header.jpg',
-    'src/assets/textures/TCom_GlassTeardrop_header.jpg',
-    'src/assets/textures/TCom_Wicker_Herringbone_header.jpg',
-    'src/assets/textures/TCom_Snow_Detail_header.jpg',
-    'src/assets/textures/TCom_Pavement_CobblestoneForest02_header.jpg',
-    'src/assets/textures/TCom_Metal_RedHotSteel_header.jpg'
+    'TCom_Marble_TilesDiamond2_header.jpg',
+    'TCom_Marble_TilesGeometric2_header.jpg',
+    'TCom_GlassTeardrop_header.jpg',
+    'TCom_Wicker_Herringbone_header.jpg',
+    'TCom_Snow_Detail_header.jpg',
+    'TCom_Pavement_CobblestoneForest02_header.jpg',
+    'TCom_Metal_RedHotSteel_header.jpg'
 ];
 
 // Carrega todas as texturas
