@@ -3,6 +3,55 @@ import * as THREE from 'three'; // Biblioteca para renderização 3D
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'; // Controle de câmera orbitável
 import * as CANNON from 'cannon-es'; // Biblioteca para simulação física
 
+// Carregador de texturas
+const textureLoader = new THREE.TextureLoader();
+
+// Função para carregar textura com tratamento de erro
+function loadTexture(path) {
+    const texture = textureLoader.load(
+        path,
+        (texture) => {
+            console.log('Textura carregada com sucesso:', path);
+            // Configura a textura assim que for carregada
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            texture.encoding = THREE.sRGBEncoding;
+        },
+        undefined,
+        (error) => {
+            console.error('Erro ao carregar textura:', path, error);
+        }
+    );
+    return texture;
+}
+
+// Carrega as texturas para as bolas (usando caminhos relativos ao index.html)
+const texturePaths = [
+    'src/assets/textures/TCom_Marble_TilesDiamond2_header.jpg',
+    'src/assets/textures/TCom_Marble_TilesGeometric2_header.jpg',
+    'src/assets/textures/TCom_GlassTeardrop_header.jpg',
+    'src/assets/textures/TCom_Wicker_Herringbone_header.jpg',
+    'src/assets/textures/TCom_Snow_Detail_header.jpg',
+    'src/assets/textures/TCom_Pavement_CobblestoneForest02_header.jpg',
+    'src/assets/textures/TCom_Metal_RedHotSteel_header.jpg'
+];
+
+// Carrega todas as texturas
+const textures = texturePaths.map(path => loadTexture(path));
+
+// Configuração das texturas
+textures.forEach(tex => {
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, 1);
+    tex.encoding = THREE.sRGBEncoding;
+});
+
+// Mapa de ambiente para reflexões
+const envMapTexture = textures[0].clone();
+envMapTexture.mapping = THREE.EquirectangularReflectionMapping;
+
 // Configuração do renderizador WebGL
 const renderer = new THREE.WebGLRenderer({ antialias: true }); // Cria um renderizador com antialiasing
 renderer.setSize(window.innerWidth, window.innerHeight); // Define o tamanho do renderizador para o tamanho da janela
@@ -12,24 +61,48 @@ document.body.appendChild(renderer.domElement); // Adiciona o renderizador ao co
 // Criação da cena 3D
 const scene = new THREE.Scene(); // Cria uma nova cena
 scene.background = new THREE.Color(0xFFFFFF); // Define a cor de fundo da cena como branco
+scene.environment = envMapTexture; // Aplica o mapa de ambiente à cena
 
 // Configuração da câmera
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000); // Cria uma câmera perspectiva
-camera.position.set(10, 20, 0); // Posiciona a câmera em (10, 20, 0)
+camera.position.set(20, 35, 0); // Aumentando a altura da câmera para ter uma visão melhor das bolas caindo
 const orbit = new OrbitControls(camera, renderer.domElement); // Adiciona controles de órbita à câmera
 orbit.update(); // Atualiza os controles da câmera
 
-// Configuração da iluminação
-const ambientLight = new THREE.AmbientLight(0x333333); // Adiciona uma luz ambiente para iluminação global
-scene.add(ambientLight); // Adiciona a luz ambiente à cena
+// Configuração da luz
+const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.5);
+scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.8); // Adiciona uma luz direcional
-directionalLight.castShadow = true; // Habilita sombras para a luz direcional
-directionalLight.position.set(0, 50, 0); // Posiciona a luz direcional em (0, 50, 0)
-scene.add(directionalLight); // Adiciona a luz direcional à cena
+const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 1);
+directionalLight.position.set(10, 20, 10);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.width = 2048;
+directionalLight.shadow.mapSize.height = 2048;
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 50;
+directionalLight.shadow.camera.left = -20;
+directionalLight.shadow.camera.right = 20;
+directionalLight.shadow.camera.top = 20;
+directionalLight.shadow.camera.bottom = -20;
+scene.add(directionalLight);
+
+// Configuração do renderizador para melhor qualidade de sombras
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 // Configuração do mundo físico (Cannon-es)
-const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.81, 0) }); // Cria um mundo físico com gravidade apontando para baixo
+const world = new CANNON.World({
+    gravity: new CANNON.Vec3(0, -9.81, 0)
+});
+
+// Define as configurações de contato padrão do mundo
+world.defaultContactMaterial = new CANNON.ContactMaterial(
+    new CANNON.Material(),
+    new CANNON.Material(),
+    {
+        friction: 0.4,
+        restitution: 0.3
+    }
+);
 
 // Criação do anel (torus)
 const ringRadius = 1; // Raio do anel
@@ -54,14 +127,16 @@ ringBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Rotaciona o corpo físi
 world.addBody(ringBody); // Adiciona o corpo físico ao mundo
 
 // Criação do chão
-const groundGeometry = new THREE.PlaneGeometry(20, 20); // Cria a geometria do chão
-const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, side: THREE.DoubleSide }); // Define o material do chão (cor cinza)
-const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial); // Cria a malha do chão
-groundMesh.receiveShadow = true; // Permite que o chão receba sombras
-groundMesh.rotation.x = -Math.PI / 2; // Rotaciona o chão para ficar na horizontal
-scene.add(groundMesh); // Adiciona o chão à cena
+const groundGeometry = new THREE.PlaneGeometry(40, 40); // Aumentando o tamanho do chão
+const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, side: THREE.DoubleSide });
+const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+groundMesh.receiveShadow = true;
+groundMesh.rotation.x = -Math.PI / 2;
+scene.add(groundMesh);
 
-const groundPhysMat = new CANNON.Material(); // Define o material físico do chão
+// Material físico do chão com propriedades de bounce
+const groundPhysMat = new CANNON.Material('groundMaterial');
+
 const groundBody = new CANNON.Body({
     type: CANNON.Body.STATIC, // Define o corpo como estático
     shape: new CANNON.Plane(), // Define a forma do corpo como um plano
@@ -69,6 +144,80 @@ const groundBody = new CANNON.Body({
 });
 groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Rotaciona o corpo físico para corresponder à malha
 world.addBody(groundBody); // Adiciona o corpo físico ao mundo
+
+// Criação das paredes
+const wallHeight = 10;
+const wallThickness = 0.5;
+const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, transparent: true, opacity: 0.5 });
+
+// Parede frontal
+const frontWallGeometry = new THREE.BoxGeometry(20, wallHeight, wallThickness);
+const frontWallMesh = new THREE.Mesh(frontWallGeometry, wallMaterial);
+frontWallMesh.position.set(0, wallHeight/2, 10);
+frontWallMesh.castShadow = true;
+frontWallMesh.receiveShadow = true;
+scene.add(frontWallMesh);
+
+// Parede traseira
+const backWallMesh = new THREE.Mesh(frontWallGeometry, wallMaterial);
+backWallMesh.position.set(0, wallHeight/2, -10);
+backWallMesh.castShadow = true;
+backWallMesh.receiveShadow = true;
+scene.add(backWallMesh);
+
+// Parede esquerda
+const sideWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, 20);
+const leftWallMesh = new THREE.Mesh(sideWallGeometry, wallMaterial);
+leftWallMesh.position.set(-10, wallHeight/2, 0);
+leftWallMesh.castShadow = true;
+leftWallMesh.receiveShadow = true;
+scene.add(leftWallMesh);
+
+// Parede direita
+const rightWallMesh = new THREE.Mesh(sideWallGeometry, wallMaterial);
+rightWallMesh.position.set(10, wallHeight/2, 0);
+rightWallMesh.castShadow = true;
+rightWallMesh.receiveShadow = true;
+scene.add(rightWallMesh);
+
+// Física das paredes
+const wallPhysMat = new CANNON.Material();
+
+// Parede frontal física
+const frontWallBody = new CANNON.Body({
+    type: CANNON.Body.STATIC,
+    shape: new CANNON.Box(new CANNON.Vec3(10, wallHeight/2, wallThickness/2)),
+    material: wallPhysMat
+});
+frontWallBody.position.set(0, wallHeight/2, 10);
+world.addBody(frontWallBody);
+
+// Parede traseira física
+const backWallBody = new CANNON.Body({
+    type: CANNON.Body.STATIC,
+    shape: new CANNON.Box(new CANNON.Vec3(10, wallHeight/2, wallThickness/2)),
+    material: wallPhysMat
+});
+backWallBody.position.set(0, wallHeight/2, -10);
+world.addBody(backWallBody);
+
+// Parede esquerda física
+const leftWallBody = new CANNON.Body({
+    type: CANNON.Body.STATIC,
+    shape: new CANNON.Box(new CANNON.Vec3(wallThickness/2, wallHeight/2, 10)),
+    material: wallPhysMat
+});
+leftWallBody.position.set(-10, wallHeight/2, 0);
+world.addBody(leftWallBody);
+
+// Parede direita física
+const rightWallBody = new CANNON.Body({
+    type: CANNON.Body.STATIC,
+    shape: new CANNON.Box(new CANNON.Vec3(wallThickness/2, wallHeight/2, 10)),
+    material: wallPhysMat
+});
+rightWallBody.position.set(10, wallHeight/2, 0);
+world.addBody(rightWallBody);
 
 // Arrays para armazenar as bolinhas
 const meshes = []; // Armazena as malhas das bolinhas
@@ -91,6 +240,18 @@ function updateTimer() {
     const seconds = Math.floor(elapsedTime / 1000); // Converte para segundos
     const milliseconds = Math.floor((elapsedTime % 1000) / 10); // Converte para milissegundos
     timerElement.textContent = `Tempo: ${seconds.toString().padStart(2, '0')}:${milliseconds.toString().padStart(2, '0')}`; // Atualiza o texto do cronômetro
+
+    // Se atingir 60 segundos (1 minuto), para o jogo
+    if (seconds >= 60) {
+        stopBallGeneration(); // Para a geração de bolas
+        
+        // Mostra mensagem de fim de jogo
+        const finalScore = score;
+        setTimeout(() => {
+            alert(`Tempo esgotado! Pontuação final: ${finalScore}`);
+            resetGame(); // Reseta o jogo após mostrar a mensagem
+        }, 100);
+    }
 }
 
 // Função para iniciar o cronômetro
@@ -102,78 +263,173 @@ function startTimer() {
 
 // Função para parar o cronômetro
 function stopTimer() {
-    clearInterval(timerInterval); // Limpa o intervalo
-    timerInterval = null; // Reseta o intervalo
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
 }
 
 // Função para resetar o cronômetro
 function resetTimer() {
-    stopTimer(); // Para o cronômetro
-    elapsedTime = 0; // Reseta o tempo decorrido
-    timerElement.textContent = 'Tempo: 00:00'; // Atualiza o texto do cronômetro
+    stopTimer();
+    elapsedTime = 0;
+    timerElement.textContent = 'Tempo: 00:00';
 }
 
 // Função para criar uma bola
 function createBall() {
-    const randomX = (Math.random() - 0.5) * 10; // Gera uma posição X aleatória
-    const randomZ = (Math.random() - 0.5) * 10; // Gera uma posição Z aleatória
-    const randomY = 10; // Define a posição Y fixa
+    const randomX = (Math.random() - 0.5) * 10;
+    const randomZ = (Math.random() - 0.5) * 10;
+    const randomY = 30;
 
-    const sphereGeo = new THREE.SphereGeometry(0.2, 30, 30); // Cria a geometria da bola
-    const sphereMat = new THREE.MeshStandardMaterial({ color: Math.random() * 0xFFFFFF }); // Define o material da bola com cor aleatória
-    const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat); // Cria a malha da bola
-    sphereMesh.castShadow = true; // Habilita sombras para a bola
-    scene.add(sphereMesh); // Adiciona a bola à cena
-    sphereMesh.position.set(randomX, randomY, randomZ); // Posiciona a bola
-
-    const spherePhysMat = new CANNON.Material(); // Define o material físico da bola
-    const sphereBody = new CANNON.Body({
-        mass: 0.3, // Define a massa da bola
-        shape: new CANNON.Sphere(0.2), // Define a forma da bola como uma esfera
-        position: new CANNON.Vec3(randomX, randomY, randomZ), // Posiciona o corpo físico
-        material: spherePhysMat // Aplica o material físico
+    // Material básico para debug
+    const sphereMat = new THREE.MeshStandardMaterial({
+        color: Math.random() * 0xFFFFFF,
+        metalness: 0.3,
+        roughness: 0.7
     });
-    world.addBody(sphereBody); // Adiciona o corpo físico ao mundo
 
-    meshes.push(sphereMesh); // Armazena a malha da bola
-    bodies.push(sphereBody); // Armazena o corpo físico da bola
+    // Tenta aplicar uma textura aleatória
+    try {
+        const randomTexture = textures[Math.floor(Math.random() * textures.length)];
+        if (randomTexture) {
+            sphereMat.map = randomTexture;
+            console.log('Textura aplicada com sucesso à bola');
+        } else {
+            console.log('Nenhuma textura disponível');
+        }
+    } catch (error) {
+        console.error('Erro ao aplicar textura:', error);
+    }
+
+    const sphereGeo = new THREE.SphereGeometry(0.2, 32, 32);
+    const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+    sphereMesh.castShadow = true;
+    sphereMesh.receiveShadow = true;
+    scene.add(sphereMesh);
+    sphereMesh.position.set(randomX, randomY, randomZ);
+
+    const sphereBody = new CANNON.Body({
+        mass: 0.3,
+        shape: new CANNON.Sphere(0.2),
+        position: new CANNON.Vec3(randomX, randomY, randomZ),
+        material: new CANNON.Material(),
+        linearDamping: 0.3,
+        angularDamping: 0.3
+    });
+
+    sphereBody.velocity.set(
+        (Math.random() - 0.5) * 1,
+        0,
+        (Math.random() - 0.5) * 1
+    );
+
+    world.addBody(sphereBody);
+    meshes.push(sphereMesh);
+    bodies.push(sphereBody);
+}
+
+// Função para criar uma bola dourada especial
+function createGoldenBall() {
+    const randomX = (Math.random() - 0.5) * 10;
+    const randomZ = (Math.random() - 0.5) * 10;
+    const randomY = 30;
+
+    // Material dourado
+    const goldenMaterial = new THREE.MeshStandardMaterial({
+        color: 0xFFD700,
+        metalness: 0.8,
+        roughness: 0.2,
+        emissive: 0xFFD700,
+        emissiveIntensity: 0.2
+    });
+
+    const sphereGeo = new THREE.SphereGeometry(0.3, 32, 32);
+    const sphereMesh = new THREE.Mesh(sphereGeo, goldenMaterial);
+    sphereMesh.castShadow = true;
+    sphereMesh.receiveShadow = true;
+    scene.add(sphereMesh);
+    sphereMesh.position.set(randomX, randomY, randomZ);
+
+    const sphereBody = new CANNON.Body({
+        mass: 0.3,
+        shape: new CANNON.Sphere(0.3),
+        position: new CANNON.Vec3(randomX, randomY, randomZ),
+        material: new CANNON.Material(),
+        linearDamping: 0.3,
+        angularDamping: 0.3
+    });
+
+    sphereBody.velocity.set(
+        (Math.random() - 0.5) * 1,
+        0,
+        (Math.random() - 0.5) * 1
+    );
+
+    sphereBody.isGolden = true;
+    world.addBody(sphereBody);
+    meshes.push(sphereMesh);
+    bodies.push(sphereBody);
 }
 
 // Controle de geração de bolinhas
-let intervalId = null; // Armazena o ID do intervalo de geração de bolinhas
+let intervalId = null;
+let goldenBallInterval = null;
 
 // Função para iniciar a geração de bolinhas
 function startBallGeneration() {
-    if (intervalId) return; // Evita múltiplos intervalos
-    intervalId = setInterval(createBall, 500); // Gera uma bola a cada 500ms
-    startTimer(); // Inicia o cronômetro
+    if (intervalId) return;
+    intervalId = setInterval(createBall, 500);
+    
+    // Cria uma bola dourada a cada 5 segundos
+    goldenBallInterval = setInterval(createGoldenBall, 5000);
+    
+    startTimer();
 }
 
 // Função para parar a geração de bolinhas
 function stopBallGeneration() {
     if (intervalId) {
-        clearInterval(intervalId); // Limpa o intervalo
-        intervalId = null; // Reseta o intervalo
+        clearInterval(intervalId);
+        clearInterval(goldenBallInterval);
+        intervalId = null;
+        goldenBallInterval = null;
     }
-    stopTimer(); // Para o cronômetro
+    stopTimer();
 }
 
 // Função para resetar o jogo
 function resetGame() {
-    meshes.forEach(mesh => scene.remove(mesh)); // Remove todas as bolinhas da cena
-    bodies.forEach(body => world.removeBody(body)); // Remove todos os corpos físicos do mundo
-    meshes.length = 0; // Limpa o array de malhas
-    bodies.length = 0; // Limpa o array de corpos físicos
+    // Remove todas as bolas existentes
+    meshes.forEach(mesh => scene.remove(mesh));
+    bodies.forEach(body => world.removeBody(body));
+    meshes.length = 0;
+    bodies.length = 0;
 
-    score = 0; // Reseta a pontuação
-    scoreElement.textContent = `Pontuação: ${score}`; // Atualiza o texto da pontuação
-    resetTimer(); // Reseta o cronômetro
+    // Reseta a pontuação
+    score = 0;
+    scoreElement.textContent = `Pontuação: ${score}`;
+    
+    // Reseta o timer
+    resetTimer();
+    
+    // Reseta a cor do aro
+    resetRingColor();
 }
 
 // Adiciona eventos aos botões
 document.getElementById('startButton').addEventListener('click', startBallGeneration); // Inicia a geração de bolinhas
 document.getElementById('stopButton').addEventListener('click', stopBallGeneration); // Para a geração de bolinhas
 document.getElementById('resetButton').addEventListener('click', resetGame); // Reseta o jogo
+
+// Variável para controlar o tempo que o anel fica verde
+let ringColorTimer = null;
+
+// Função para resetar a cor do anel
+function resetRingColor() {
+    ringMesh.material.color.setHex(0xffa500); // Volta para a cor laranja
+    ringColorTimer = null;
+}
 
 // Função para mover o anel com o mouse
 const raycaster = new THREE.Raycaster(); // Cria um raycaster para detectar interseções
@@ -199,34 +455,62 @@ window.addEventListener('mousemove', moveRingWithMouse); // Adiciona o evento de
 const timestep = 1 / 60; // Define o passo de tempo para a simulação física
 
 function animate() {
-    world.step(timestep); // Avança a simulação física
+    world.step(timestep);
 
-    // Atualiza a posição e rotação das bolinhas
-    meshes.forEach((mesh, i) => {
-        mesh.position.copy(bodies[i].position); // Atualiza a posição da malha com base no corpo físico
-        mesh.quaternion.copy(bodies[i].quaternion); // Atualiza a rotação da malha com base no corpo físico
+    for (let i = meshes.length - 1; i >= 0; i--) {
+        const mesh = meshes[i];
+        const body = bodies[i];
+        
+        mesh.position.copy(body.position);
+        mesh.quaternion.copy(body.quaternion);
 
-        const ballY = mesh.position.y; // Obtém a posição Y da bola
-        const ringY = ringMesh.position.y; // Obtém a posição Y do anel
-        const distance = Math.sqrt((mesh.position.x - ringMesh.position.x) ** 2 + (mesh.position.z - ringMesh.position.z) ** 2); // Calcula a distância entre a bola e o anel
+        const ballY = mesh.position.y;
+        const ringY = ringMesh.position.y;
+        const distance = Math.sqrt((mesh.position.x - ringMesh.position.x) ** 2 + (mesh.position.z - ringMesh.position.z) ** 2);
 
         // Verifica se a bola passou pelo anel
-        if (ballY < ringY && distance < ringRadius && !bodies[i].hasScored) {
-            bodies[i].hasScored = true; // Marca a bola como pontuada
-            score++; // Incrementa a pontuação
-            scoreElement.textContent = `Pontuação: ${score}`; // Atualiza o texto da pontuação
+        if (ballY < ringY && distance < ringRadius && !body.hasScored) {
+            body.hasScored = true;
+            
+            if (body.isGolden) {
+                score += 5;
+                ringMesh.material.color.setHex(0xFFD700);
+            } else {
+                score++;
+                ringMesh.material.color.setHex(0x00ff00);
+            }
+            
+            scoreElement.textContent = `Pontuação: ${score}`;
+            
+            if (ringColorTimer) {
+                clearTimeout(ringColorTimer);
+            }
+            ringColorTimer = setTimeout(resetRingColor, 500);
         }
 
-        // Remove a bola se cair abaixo do chão
-        if (ballY < 0 && !bodies[i].hasScored) {
-            scene.remove(mesh); // Remove a malha da cena
-            world.removeBody(bodies[i]); // Remove o corpo físico do mundo
-            meshes.splice(i, 1); // Remove a malha do array
-            bodies.splice(i, 1); // Remove o corpo físico do array
+        // Verifica se a bola dourada tocou o chão sem ser pontuada
+        if (body.isGolden && !body.hasScored && ballY <= 0.3) {
+            score = Math.max(0, score - 3);
+            scoreElement.textContent = `Pontuação: ${score}`;
+            body.hasScored = true;
+            
+            ringMesh.material.color.setHex(0xff0000);
+            if (ringColorTimer) {
+                clearTimeout(ringColorTimer);
+            }
+            ringColorTimer = setTimeout(resetRingColor, 500);
         }
-    });
 
-    renderer.render(scene, camera); // Renderiza a cena
+        // Remove bolas que caíram demais
+        if (ballY < -10) {
+            scene.remove(mesh);
+            world.removeBody(body);
+            meshes.splice(i, 1);
+            bodies.splice(i, 1);
+        }
+    }
+
+    renderer.render(scene, camera);
 }
 
 renderer.setAnimationLoop(animate); // Inicia o loop de animação
