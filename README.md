@@ -1,4 +1,10 @@
 # Game Cesta de Bolinhas
+#Equipe:
+Tailson Alves
+Artur Jardel
+Alisson dos Santos
+Jonathan Fernandes
+Francisco Wesley
 
 Siga estes passos:
 
